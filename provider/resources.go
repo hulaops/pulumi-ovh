@@ -12,28 +12,48 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package xyz
+package ovh
 
 import (
 	"fmt"
 	"path/filepath"
+	"unicode"
 
+	"github.com/hulaops/pulumi-ovh/provider/pkg/version"
 	"github.com/pulumi/pulumi-terraform-bridge/v3/pkg/tfbridge"
 	shim "github.com/pulumi/pulumi-terraform-bridge/v3/pkg/tfshim"
 	shimv2 "github.com/pulumi/pulumi-terraform-bridge/v3/pkg/tfshim/sdk-v2"
-	"github.com/pulumi/pulumi-xyz/provider/pkg/version"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
-	"github.com/terraform-providers/terraform-provider-xyz/xyz"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/terraform-providers/terraform-provider-ovh/ovh"
 )
 
 // all of the token components used below.
 const (
 	// This variable controls the default name of the package in the package
 	// registries for nodejs and python:
-	mainPkg = "xyz"
+	mainPkg = "ovh"
 	// modules:
-	mainMod = "index" // the xyz module
+	mainMod = "index" // the ovh module
 )
+
+// makeType manufactures a type token for the package and the given module and type.
+func makeType(mod string, typ string) tokens.Type {
+	return tokens.Type(makeMember(mod, typ))
+}
+
+// makeMember manufactures a type token for the package and the given module and type.
+func makeMember(mod string, mem string) tokens.ModuleMember {
+	return tokens.ModuleMember(mainPkg + ":" + mod + ":" + mem)
+}
+
+// makeResource manufactures a standard resource token given a module and resource name.  It
+// automatically uses the main package and names the file by simply lower casing the resource's
+// first character.
+func makeResource(mod string, res string) tokens.Type {
+	fn := string(unicode.ToLower(rune(res[0]))) + res[1:]
+	return makeType(mod+"/"+fn, res)
+}
 
 // preConfigureCallback is called before the providerConfigure function of the underlying provider.
 // It should validate that the provider can be configured, and provide actionable errors in the case
@@ -46,52 +66,46 @@ func preConfigureCallback(vars resource.PropertyMap, c shim.ResourceConfig) erro
 // Provider returns additional overlaid schema and metadata associated with the provider..
 func Provider() tfbridge.ProviderInfo {
 	// Instantiate the Terraform provider
-	p := shimv2.NewProvider(xyz.Provider())
+	p := shimv2.NewProvider(ovh.Provider())
 
 	// Create a Pulumi provider mapping
 	prov := tfbridge.ProviderInfo{
 		P:           p,
-		Name:        "xyz",
-		// DisplayName is a way to be able to change the casing of the provider
-		// name when being displayed on the Pulumi registry
-		DisplayName: "",
-		// The default publisher for all packages is Pulumi.
-		// Change this to your personal name (or a company name) that you
-		// would like to be shown in the Pulumi Registry if this package is published
-		// there.
-		Publisher: "Pulumi",
+		Name:        "ovh",
+		DisplayName: "Ovh",
+		Publisher:   "Hulaops",
 		// LogoURL is optional but useful to help identify your package in the Pulumi Registry
 		// if this package is published there.
 		//
 		// You may host a logo on a domain you control or add an SVG logo for your package
 		// in your repository and use the raw content URL for that file as your logo URL.
-		LogoURL:     "",
-		// PluginDownloadURL is an optional URL used to download the Provider
-		// for use in Pulumi programs
-		// e.g https://github.com/org/pulumi-provider-name/releases/
+		LogoURL:           "",
 		PluginDownloadURL: "",
-		Description: "A Pulumi package for creating and managing xyz cloud resources.",
-		// category/cloud tag helps with categorizing the package in the Pulumi Registry.
-		// For all available categories, see `Keywords` in
-		// https://www.pulumi.com/docs/guides/pulumi-packages/schema/#package.
-		Keywords:   []string{"pulumi", "xyz", "category/cloud"},
-		License:    "Apache-2.0",
-		Homepage:   "https://www.pulumi.com",
-		Repository: "https://github.com/pulumi/pulumi-xyz",
+		Description:       "A Pulumi package for creating and managing ovh cloud resources.",
+		Keywords:          []string{"pulumi", "ovh", "category/cloud"},
+		License:           "Apache-2.0",
+		Homepage:          "https://www.hulaops.com",
+		Repository:        "https://github.com/hulaops/pulumi-ovh",
 		// The GitHub Org for the provider - defaults to `terraform-providers`
-		GitHubOrg: "",
-		Config:     map[string]*tfbridge.SchemaInfo{
-			// Add any required configuration here, or remove the example below if
-			// no additional points are required.
-			// "region": {
-			// 	Type: tfbridge.MakeType("region", "Region"),
-			// 	Default: &tfbridge.DefaultInfo{
-			// 		EnvVars: []string{"AWS_REGION", "AWS_DEFAULT_REGION"},
-			// 	},
-			// },
+		GitHubOrg: "ovh",
+		Config: map[string]*tfbridge.SchemaInfo{
+			"endpoint": {
+				Name: "Endpoint", // not plural
+			},
+			"application_key": {
+				Name: "ApplicationKey",
+			},
+			"application_secret": {
+				Name: "ApplicationSecret",
+			},
+			"consumer_key": {
+				Name: "ConsumerKey",
+			},
 		},
 		PreConfigureCallback: preConfigureCallback,
-		Resources:            map[string]*tfbridge.ResourceInfo{
+		Resources: map[string]*tfbridge.ResourceInfo{
+			"ovh_domain_zone":        {Tok: makeResource(mainMod, "DomainZone")},
+			"ovh_domain_zone_record": {Tok: makeResource(mainMod, "DomainZoneRecord")},
 			// Map each resource in the Terraform provider to a Pulumi type. Two examples
 			// are below - the single line form is the common case. The multi-line form is
 			// needed only if you wish to override types or other default options.
